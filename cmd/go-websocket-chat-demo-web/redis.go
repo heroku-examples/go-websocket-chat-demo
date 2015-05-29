@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"net/url"
 	"sync"
 	"time"
@@ -80,18 +79,16 @@ func (rr *redisReceiver) run() {
 				"channel": v.Channel,
 				"message": v.Data,
 			}).Println("Redis Message Received")
-			msg := message{}
-			if err := json.Unmarshal(v.Data, &msg); err != nil {
+			msg, err := validateMessage(v.Data)
+			if err != nil {
 				log.WithFields(log.Fields{
 					"err":  err,
 					"data": v.Data,
+					"msg":  msg,
 				}).Error("Error unmarshalling message from redis")
 				continue
 			}
-			if msg.Handle != "" && msg.Text != "" {
-				rr.broadcast(v.Data)
-			}
-
+			rr.broadcast(v.Data)
 		case redis.Subscription:
 			log.WithFields(log.Fields{
 				"channel": v.Channel,
