@@ -12,6 +12,10 @@ import (
 	"github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/github.com/gorilla/websocket"
 )
 
+const (
+	CHANNEL = "chat"
+)
+
 func newRedisPool(us string) (*redis.Pool, error) {
 	u, err := url.Parse(us)
 	if err != nil {
@@ -46,13 +50,14 @@ func newRedisPool(us string) (*redis.Pool, error) {
 }
 
 // redisReceiver receives redis messages and broadcasts them to all registered
-// websocket connections
+// websocket connections that are Registered.
 type redisReceiver struct {
 	pool       *redis.Pool
 	sync.Mutex // Protects the conns map
 	conns      map[string]*websocket.Conn
 }
 
+// newRedisReceiver creates a redisReceiver that will use the provided redis.Pool.
 func newRedisReceiver(pool *redis.Pool) redisReceiver {
 	return redisReceiver{
 		pool:  pool,
@@ -60,11 +65,14 @@ func newRedisReceiver(pool *redis.Pool) redisReceiver {
 	}
 }
 
+// run receives pubsub messages from redis after establishing a connection.
+//
+// When a valid message is received it is broadcast to all connected websockets
 func (rr *redisReceiver) run() {
 	conn := rr.pool.Get()
 	defer conn.Close()
 	psc := redis.PubSubConn{conn}
-	psc.Subscribe("chat")
+	psc.Subscribe(CHANNEL)
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.Message:
@@ -98,6 +106,9 @@ func (rr *redisReceiver) run() {
 	}
 }
 
+// broadcast the provided message to all connected websocket connections.
+// If an error occurs while writting a message to a websocket connection it is
+// closed and deregistered.
 func (rr *redisReceiver) broadcast(data []byte) {
 	rr.Mutex.Lock()
 	defer rr.Mutex.Unlock()
@@ -109,12 +120,14 @@ func (rr *redisReceiver) broadcast(data []byte) {
 				"err":  err,
 				"conn": conn,
 			}).Error("Error writting data to connection! Closing and removing Connection")
-			conn.Close()
 			rr.deRegister(id)
 		}
 	}
 }
 
+// register the websocket connection with the receiver and return a unique
+// identifier for the connection. This identifier can be used to deregister the
+// connection later
 func (rr *redisReceiver) register(conn *websocket.Conn) string {
 	rr.Mutex.Lock()
 	defer rr.Mutex.Unlock()
@@ -123,12 +136,18 @@ func (rr *redisReceiver) register(conn *websocket.Conn) string {
 	return id
 }
 
+// deRegister the connection by closing it and removing it from our list.
 func (rr *redisReceiver) deRegister(id string) {
 	rr.Mutex.Lock()
 	defer rr.Mutex.Unlock()
-	delete(rr.conns, id)
+	conn, ok := rr.conns[id]
+	if ok {
+		conn.Close()
+		delete(rr.conns, id)
+	}
 }
 
+// redisWriter publishes messages to the redis CHANNEL
 type redisWriter struct {
 	pool     *redis.Pool
 	messages chan []byte
@@ -141,30 +160,25 @@ func newRedisWriter(pool *redis.Pool) redisWriter {
 	}
 }
 
+// run the main redisWriter loop that publishes incoming messages to redis.
 func (rw *redisWriter) run() {
+	conn := rw.pool.Get()
+	defer conn.Close()
+
 	for data := range rw.messages {
-		if err := rw.write(data); err != nil {
-			log.WithFields(log.Fields{
-				"data": data,
-				"err":  err,
-			}).Panic("Error writing to redis")
+		ctx := log.Fields{"data": data}
+		if err := conn.Send("PUBLISH", CHANNEL, data); err != nil {
+			ctx["err"] = err
+			log.WithFields(ctx).Fatalf("Unable to publish message to redis")
+		}
+		if err := conn.Flush(); err != nil {
+			ctx["err"] = err
+			log.WithFields(ctx).Fatalf("Unable to flush published message to redis")
 		}
 	}
 }
 
-func (rw *redisWriter) write(data []byte) error {
-	conn := rw.pool.Get()
-	defer conn.Close()
-
-	if err := conn.Send("PUBLISH", "chat", data); err != nil {
-		return err
-	}
-	if err := conn.Flush(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (rw *redisWriter) writeMessage(data []byte) {
+// publish to redis via channel.
+func (rw *redisWriter) publish(data []byte) {
 	rw.messages <- data
 }
