@@ -1,0 +1,18 @@
+{
+  "name": "Go Websocket Chat Demo",
+  "description": "Go websocket chat demo application.",
+  "keywords": [
+    "streaming",
+    "redis",
+    "go"
+  ],
+  "website": "http://github.com/heroku-examples/go-websocket-chat-demo",
+  "repository": "http://github.com/heroku-examples/go-websocket-chat-demol",
+  "scripts": {},
+  "env": {
+    "BUILDPACK_URL": "https://github.com/heroku/heroku-buildpack-go"
+  },
+  "addons": [
+    "heroku-redis"
+  ]
+}
