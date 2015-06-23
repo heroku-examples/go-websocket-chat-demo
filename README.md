@@ -1,3 +1,5 @@
+[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+
 # Go Websocket Example: Chat
 
 This is a simple application that serves tasty WebSockets to your users
