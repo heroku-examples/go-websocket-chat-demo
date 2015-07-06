@@ -48,15 +48,16 @@ func newRedisPool(us string) (*redis.Pool, error) {
 	}, nil
 }
 
-// redisReceiver receives redis messages and broadcasts them to all registered
-// websocket connections that are Registered.
+// redisReceiver receives messages from Redis and broadcasts them to all
+// registered websocket connections that are Registered.
 type redisReceiver struct {
 	pool       *redis.Pool
 	sync.Mutex // Protects the conns map
 	conns      map[string]*websocket.Conn
 }
 
-// newRedisReceiver creates a redisReceiver that will use the provided redis.Pool.
+// newRedisReceiver creates a redisReceiver that will use the provided
+// rredis.Pool.
 func newRedisReceiver(pool *redis.Pool) redisReceiver {
 	return redisReceiver{
 		pool:  pool,
@@ -64,8 +65,7 @@ func newRedisReceiver(pool *redis.Pool) redisReceiver {
 	}
 }
 
-// run receives pubsub messages from redis after establishing a connection.
-//
+// run receives pubsub messages from Redis after establishing a connection.
 // When a valid message is received it is broadcast to all connected websockets
 func (rr *redisReceiver) run() {
 	conn := rr.pool.Get()
@@ -85,7 +85,7 @@ func (rr *redisReceiver) run() {
 					"err":  err,
 					"data": v.Data,
 					"msg":  msg,
-				}).Error("Error unmarshalling message from redis")
+				}).Error("Error unmarshalling message from Redis")
 				continue
 			}
 			rr.broadcast(v.Data)
@@ -96,9 +96,9 @@ func (rr *redisReceiver) run() {
 				"count":   v.Count,
 			}).Println("Redis Subscription Received")
 		case error:
-			log.WithField("err", v).Error("Error while subscribed to redis")
+			log.WithField("err", v).Errorf("Error while subscribed to Redis channel %s", CHANNEL)
 		default:
-			log.WithField("v", v).Println("Unknown redis receive during subscription")
+			log.WithField("v", v).Println("Unknown Redis receive during subscription")
 		}
 	}
 }
@@ -144,7 +144,7 @@ func (rr *redisReceiver) deRegister(id string) {
 	}
 }
 
-// redisWriter publishes messages to the redis CHANNEL
+// redisWriter publishes messages to the Redis CHANNEL
 type redisWriter struct {
 	pool     *redis.Pool
 	messages chan []byte
@@ -157,7 +157,7 @@ func newRedisWriter(pool *redis.Pool) redisWriter {
 	}
 }
 
-// run the main redisWriter loop that publishes incoming messages to redis.
+// run the main redisWriter loop that publishes incoming messages to Redis.
 func (rw *redisWriter) run() {
 	conn := rw.pool.Get()
 	defer conn.Close()
@@ -166,16 +166,16 @@ func (rw *redisWriter) run() {
 		ctx := log.Fields{"data": data}
 		if err := conn.Send("PUBLISH", CHANNEL, data); err != nil {
 			ctx["err"] = err
-			log.WithFields(ctx).Fatalf("Unable to publish message to redis")
+			log.WithFields(ctx).Fatalf("Unable to publish message to Redis")
 		}
 		if err := conn.Flush(); err != nil {
 			ctx["err"] = err
-			log.WithFields(ctx).Fatalf("Unable to flush published message to redis")
+			log.WithFields(ctx).Fatalf("Unable to flush published message to Redis")
 		}
 	}
 }
 
-// publish to redis via channel.
+// publish to Redis via channel.
 func (rw *redisWriter) publish(data []byte) {
 	rw.messages <- data
 }

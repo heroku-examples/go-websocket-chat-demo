@@ -17,7 +17,7 @@ func main() {
 	redisURL := os.Getenv("REDIS_URL")
 	redisPool, err := newRedisPool(redisURL)
 	if err != nil {
-		log.WithField("url", redisURL).Fatal("Unable to create redis pool")
+		log.WithField("url", redisURL).Fatal("Unable to create Redis pool")
 	}
 
 	rr = newRedisReceiver(redisPool)
