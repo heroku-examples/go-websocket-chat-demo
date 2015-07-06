@@ -84,7 +84,7 @@ func (rr *redisReceiver) run() {
 				log.WithFields(log.Fields{
 					"err":  err,
 					"data": v.Data,
-					"msg":  msg,
+					"msg":  string(msg),
 				}).Error("Error unmarshalling message from Redis")
 				continue
 			}
