@@ -6,6 +6,8 @@
     "redis",
     "go"
   ],
+  "image": "freeformz/heroku-go:cedar14",
+  "mount_dir": "src/github.com/heroku-examples/go-websocket-chat-demo",
   "website": "http://github.com/heroku-examples/go-websocket-chat-demo",
   "repository": "http://github.com/heroku-examples/go-websocket-chat-demol",
   "scripts": {},
