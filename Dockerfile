@@ -1,1 +1,1 @@
-FROM heroku/go:latest
+FROM heroku/go:1.4.2
