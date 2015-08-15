@@ -1,6 +1,6 @@
 web:
   build: .
-  command: go-websocket-chat-demo-web
+  command: 'bash -c "go-websocket-chat-demo-web"'
   working_dir: /app/user/src/github.com/heroku-examples/go-websocket-chat-demo
   environment:
     PORT: 8080

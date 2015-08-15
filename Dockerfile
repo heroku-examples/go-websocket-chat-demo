@@ -1,1 +1,1 @@
-FROM freeformz/heroku-go:cedar14
+FROM heroku/go:latest
