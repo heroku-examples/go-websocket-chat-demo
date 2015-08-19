@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/heroku-examples/go-websocket-chat-demo",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.5",
 	"Packages": [
 		"./..."
 	],
