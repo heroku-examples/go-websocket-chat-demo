@@ -6,7 +6,7 @@
     "redis",
     "go"
   ],
-  "image": "heroku/go:1.5",
+  "image": "heroku/go:1.5.1",
   "mount_dir": "src/github.com/heroku-examples/go-websocket-chat-demo",
   "website": "http://github.com/heroku-examples/go-websocket-chat-demo",
   "repository": "http://github.com/heroku-examples/go-websocket-chat-demol",
