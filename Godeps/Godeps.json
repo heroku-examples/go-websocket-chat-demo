@@ -1,19 +1,14 @@
 {
 	"ImportPath": "github.com/heroku-examples/go-websocket-chat-demo",
-	"GoVersion": "go1.5.1",
+	"GoVersion": "go1.5",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
 		{
-			"ImportPath": "code.google.com/p/go-uuid/uuid",
-			"Comment": "null-15",
-			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
-		},
-		{
 			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.7.3-8-g52919f1",
-			"Rev": "52919f182f9c314f8a38c5afe96506f73d02b4b2"
+			"Comment": "v0.8.7-55-gf7f79f7",
+			"Rev": "f7f79f729e0fbe2fcc061db48a9ba0263f588252"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/negroni",
@@ -21,12 +16,24 @@
 			"Rev": "c7477ad8e330bef55bf1ebe300cf8aa67c492d1b"
 		},
 		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "836b6e58b3358112c8291565d01c35b8764070d7"
+		},
+		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "779af66db5668074a96f522d9025cb0a5ef50d89"
+			"Rev": "836b6e58b3358112c8291565d01c35b8764070d7"
 		},
 		{
 			"ImportPath": "github.com/gorilla/websocket",
-			"Rev": "1551221275a7bd42978745a376b2531f791d88f3"
+			"Rev": "5434f8b69b7f4f4ef0120e04c046cd6ce54ef0dd"
+		},
+		{
+			"ImportPath": "github.com/pborman/uuid",
+			"Rev": "dee7705ef7b324f27ceb85a121c61f2c2e8ce988"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "833a04a10549a95dc34458c195cbad61bbb6cb4d"
 		}
 	]
 }

@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/code.google.com/p/go-uuid/uuid"
 	log "github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/github.com/Sirupsen/logrus"
 	"github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/github.com/garyburd/redigo/redis"
 	"github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/github.com/gorilla/websocket"
+	"github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/github.com/pborman/uuid"
 )
 
 const (
