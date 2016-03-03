@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"os"
 
-	log "github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/github.com/Sirupsen/logrus"
-	"github.com/heroku-examples/go-websocket-chat-demo/Godeps/_workspace/src/github.com/codegangsta/negroni"
+	log "github.com/Sirupsen/logrus"
+	"github.com/codegangsta/negroni"
 )
 
 var (
