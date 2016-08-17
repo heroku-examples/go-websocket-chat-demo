@@ -1,1 +1,1 @@
-web: go-websocket-chat-demo-web
+web: go-websocket-chat-demo
