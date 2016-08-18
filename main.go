@@ -3,18 +3,25 @@ package main
 import (
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/heroku/gobits/redis"
 )
 
 var (
-	log = logrus.WithField("cmd", "go-websocket-chat-demo")
-	rr  redisReceiver
-	rw  redisWriter
+	waitTimeout = time.Minute * 10
+	log         = logrus.WithField("cmd", "go-websocket-chat-demo")
+	rr          redisReceiver
+	rw          redisWriter
 )
 
 func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		log.WithField("PORT", port).Fatal("$PORT must be set")
+	}
+
 	redisURL := os.Getenv("REDIS_URL")
 	redisPool, err := redis.NewRedisPoolFromURL(redisURL)
 	if err != nil {
@@ -22,14 +29,36 @@ func main() {
 	}
 
 	rr = newRedisReceiver(redisPool)
-	go rr.run()
 	rw = newRedisWriter(redisPool)
-	go rw.run()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		log.WithField("PORT", port).Fatal("$PORT must be set")
-	}
+	go func() {
+		for {
+			waited, err := redis.WaitForAvailability(redisURL, waitTimeout, rr.wait)
+			if !waited || err != nil {
+				log.WithFields(logrus.Fields{"waitTimeout": waitTimeout, "err": err}).Fatal("Redis not available by timeout!")
+			}
+			rr.broadcast(availableMessage)
+			err = rr.run()
+			if err == nil {
+				break
+			}
+			log.Error(err)
+		}
+	}()
+
+	go func() {
+		for {
+			waited, err := redis.WaitForAvailability(redisURL, waitTimeout, nil)
+			if !waited || err != nil {
+				log.WithFields(logrus.Fields{"waitTimeout": waitTimeout, "err": err}).Fatal("Redis not available by timeout!")
+			}
+			err = rw.run()
+			if err == nil {
+				break
+			}
+			log.Error(err)
+		}
+	}()
 
 	http.Handle("/", http.FileServer(http.Dir("./public")))
 	http.HandleFunc("/ws", handleWebsocket)

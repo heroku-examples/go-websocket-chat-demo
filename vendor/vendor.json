@@ -32,10 +32,10 @@
 			"revisionTime": "2016-08-17T22:48:30Z"
 		},
 		{
-			"checksumSHA1": "KwTwEV5aWQbYFnbdsPWjV++9Y5c=",
+			"checksumSHA1": "G2M6++gheNWcKWclENJPEF7mtsI=",
 			"path": "github.com/heroku/gobits/redis",
-			"revision": "c55d8aab15a05920fbc6b9ef474122e2c0acee90",
-			"revisionTime": "2016-08-17T22:48:30Z"
+			"revision": "7ec1b023d6ef07ea214fa234ca9952ae01b9135a",
+			"revisionTime": "2016-08-18T00:10:40Z"
 		},
 		{
 			"checksumSHA1": "QoVjlQFru1ixgV8vh63T4/JAtLI=",

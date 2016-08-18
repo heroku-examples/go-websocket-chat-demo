@@ -10,11 +10,6 @@
   "mount_dir": "src/github.com/heroku-examples/go-websocket-chat-demo",
   "website": "http://github.com/heroku-examples/go-websocket-chat-demo",
   "repository": "http://github.com/heroku-examples/go-websocket-chat-demol",
-  "scripts": {},
-  "buildpacks":[
-   { "url" : "https://github.com/heroku/heroku-buildpack-addon-wait.git" },
-   { "url" : "heroku/go" }
-  ],
   "addons": [
     "heroku-redis"
   ]
