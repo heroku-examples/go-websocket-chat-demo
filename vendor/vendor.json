@@ -26,14 +26,8 @@
 			"revisionTime": "2016-08-02T13:32:03Z"
 		},
 		{
-			"checksumSHA1": "1H8UoWmhmN5UkZbEDZtM50c5mSc=",
-			"path": "github.com/heroku/gobits",
-			"revision": "c55d8aab15a05920fbc6b9ef474122e2c0acee90",
-			"revisionTime": "2016-08-17T22:48:30Z"
-		},
-		{
-			"checksumSHA1": "G2M6++gheNWcKWclENJPEF7mtsI=",
-			"path": "github.com/heroku/gobits/redis",
+			"checksumSHA1": "9ls9FVOrI6ixJi7BWkTCjRSNOMQ=",
+			"path": "github.com/heroku/x/redis",
 			"revision": "7ec1b023d6ef07ea214fa234ca9952ae01b9135a",
 			"revisionTime": "2016-08-18T00:10:40Z"
 		},

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/heroku/gobits/redis"
+	"github.com/heroku/x/redis"
 )
 
 var (
