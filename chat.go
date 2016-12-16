@@ -54,7 +54,7 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := rr.register(ws)
+	rr.register(ws)
 
 	for {
 		mt, data, err := ws.ReadMessage()
@@ -80,7 +80,7 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rr.deRegister(id)
+	rr.deRegister(ws)
 
 	ws.WriteMessage(websocket.CloseMessage, []byte{})
 }

@@ -2,14 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"sync"
+	"fmt"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/garyburd/redigo/redis"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
 )
 
 const (
@@ -45,16 +44,19 @@ func init() {
 type redisReceiver struct {
 	pool *redis.Pool
 
-	mu    sync.Mutex
-	conns map[string]*websocket.Conn
+	messages       chan []byte
+	newConnections chan *websocket.Conn
+	rmConnections  chan *websocket.Conn
 }
 
 // newRedisReceiver creates a redisReceiver that will use the provided
 // rredis.Pool.
 func newRedisReceiver(pool *redis.Pool) redisReceiver {
 	return redisReceiver{
-		pool:  pool,
-		conns: make(map[string]*websocket.Conn),
+		pool:           pool,
+		messages:       make(chan []byte, 1000), // 1000 is arbitrary
+		newConnections: make(chan *websocket.Conn),
+		rmConnections:  make(chan *websocket.Conn),
 	}
 }
 
@@ -72,6 +74,7 @@ func (rr *redisReceiver) run() error {
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
 	psc.Subscribe(Channel)
+	go rr.connHandler()
 	for {
 		switch v := psc.Receive().(type) {
 		case redis.Message:
@@ -97,42 +100,59 @@ func (rr *redisReceiver) run() error {
 // broadcast the provided message to all connected websocket connections.
 // If an error occurs while writting a message to a websocket connection it is
 // closed and deregistered.
-func (rr *redisReceiver) broadcast(data []byte) {
-	rr.mu.Lock()
-	defer rr.mu.Unlock()
-	for id, conn := range rr.conns {
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.WithFields(logrus.Fields{
-				"id":   id,
-				"data": data,
-				"err":  err,
-				"conn": conn,
-			}).Error("Error writting data to connection! Closing and removing Connection")
-			rr.deRegister(id)
+func (rr *redisReceiver) broadcast(msg []byte) {
+	rr.messages <- msg
+}
+
+// register the websocket connection with the receiver.
+func (rr *redisReceiver) register(conn *websocket.Conn) {
+	rr.newConnections <- conn
+}
+
+// deRegister the connection by closing it and removing it from our list.
+func (rr *redisReceiver) deRegister(conn *websocket.Conn) {
+	rr.rmConnections <- conn
+}
+
+func (rr *redisReceiver) connHandler() {
+	conns := make([]*websocket.Conn, 0)
+	for {
+		select {
+		case msg := <-rr.messages:
+			for _, conn := range conns {
+				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+					log.WithFields(logrus.Fields{
+						"data": msg,
+						"err":  err,
+						"conn": conn,
+					}).Error("Error writting data to connection! Closing and removing Connection")
+					conns = removeConn(conns, conn)
+				}
+			}
+		case conn := <-rr.newConnections:
+			conns = append(conns, conn)
+		case conn := <-rr.rmConnections:
+			conns = removeConn(conns, conn)
 		}
 	}
 }
 
-// register the websocket connection with the receiver and return a unique
-// identifier for the connection. This identifier can be used to deregister the
-// connection later
-func (rr *redisReceiver) register(conn *websocket.Conn) string {
-	rr.mu.Lock()
-	defer rr.mu.Unlock()
-	id := uuid.NewV4().String()
-	rr.conns[id] = conn
-	return id
-}
-
-// deRegister the connection by closing it and removing it from our list.
-func (rr *redisReceiver) deRegister(id string) {
-	rr.mu.Lock()
-	defer rr.mu.Unlock()
-	conn, ok := rr.conns[id]
-	if ok {
-		conn.Close()
-		delete(rr.conns, id)
+func removeConn(conns []*websocket.Conn, remove *websocket.Conn) []*websocket.Conn {
+	var i int
+	var found bool
+	for i = 0; i < len(conns); i++ {
+		if conns[i] == remove {
+			found = true
+			break
+		}
 	}
+	if !found {
+		fmt.Printf("conns: %#v\nconn: %#v\n", conns, remove)
+		panic("Conn not found")
+	}
+	copy(conns[i:], conns[i+1:]) // shift down
+	conns[len(conns)-1] = nil    // nil last element
+	return conns[:len(conns)-1]  // truncate slice
 }
 
 // redisWriter publishes messages to the Redis CHANNEL
