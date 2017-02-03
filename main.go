@@ -23,6 +23,9 @@ func main() {
 	}
 
 	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		log.WithField("REDIS_URL", redisURL).Fatal("$REDIS_URL must be set")
+	}
 	redisPool, err := redis.NewRedisPoolFromURL(redisURL)
 	if err != nil {
 		log.WithField("url", redisURL).Fatal("Unable to create Redis pool")
