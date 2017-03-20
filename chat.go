@@ -60,12 +60,11 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 		mt, data, err := ws.ReadMessage()
 		l := log.WithFields(logrus.Fields{"mt": mt, "data": data, "err": err})
 		if err != nil {
-			if err == io.EOF {
+			if websocket.IsCloseError(err, websocket.CloseGoingAway) || err == io.EOF {
 				l.Info("Websocket closed!")
-			} else {
-				l.Error("Error reading websocket message")
+				break
 			}
-			break
+			l.Error("Error reading websocket message")
 		}
 		switch mt {
 		case websocket.TextMessage:

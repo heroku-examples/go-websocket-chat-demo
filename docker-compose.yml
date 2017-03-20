@@ -1,26 +1,18 @@
-web:
-  build: .
-  command: 'bash -c ''go-websocket-chat-demo-web'''
-  working_dir: /app/user/src/github.com/heroku-examples/go-websocket-chat-demo
-  environment:
-    PORT: 8080
-    REDIS_URL: 'redis://herokuRedis:6379'
-  ports:
-    - '8080:8080'
-  links:
-    - herokuRedis
-shell:
-  build: .
-  command: bash
-  working_dir: /app/user/src/github.com/heroku-examples/go-websocket-chat-demo
-  environment:
-    PORT: 8080
-    REDIS_URL: 'redis://herokuRedis:6379'
-  ports:
-    - '8080:8080'
-  links:
-    - herokuRedis
-  volumes:
-    - '.:/app/user/src/github.com/heroku-examples/go-websocket-chat-demo'
-herokuRedis:
-  image: redis
+version: '2'
+
+services:
+  app:
+    command: go-websocket-chat-demo
+    build: .
+    environment:
+      PORT: '5000'
+      REDIS_URL: 'redis://redis:6379'
+    depends_on:
+      - redis
+    ports:
+      - "127.0.0.1:5000:5000"
+
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
