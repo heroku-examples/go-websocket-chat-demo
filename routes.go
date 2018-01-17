@@ -9,10 +9,9 @@ import (
 
 // ChatSocket : struct to define the route parameters for the chat websocket.
 type ChatSocket struct {
-	Name        string
-	Pattern     string
-	Channel     string
-	HandlerFunc func(*chat.Hub, http.ResponseWriter, *http.Request)
+	Name    string
+	Pattern string
+	Channel string
 }
 
 // ChatSockets : list of Route parameters for chat websocket configuration.
@@ -31,7 +30,7 @@ func NewRouter(redisURL string) *mux.Router {
 			Path(route.Pattern).
 			Name(route.Name).
 			HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				route.HandlerFunc(Hub, w, r)
+				chat.HandleWebsocket(Hub, w, r)
 			})
 	}
 
@@ -42,15 +41,13 @@ func NewRouter(redisURL string) *mux.Router {
 
 var chatsockets = ChatSockets{
 	ChatSocket{
-		Name:        "Chat1 Websocket Endpoint",
-		Pattern:     "/ws/chat1",
-		Channel:     "chat1",
-		HandlerFunc: chat.HandleWebsocket,
+		Name:    "Chat1 Websocket Endpoint",
+		Pattern: "/ws/chat1",
+		Channel: "chat1",
 	},
 	ChatSocket{
-		Name:        "Chat1 Websocket Endpoint",
-		Pattern:     "/ws/chat2",
-		Channel:     "chat2",
-		HandlerFunc: chat.HandleWebsocket,
+		Name:    "Chat2 Websocket Endpoint",
+		Pattern: "/ws/chat2",
+		Channel: "chat2",
 	},
 }
