@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 var (

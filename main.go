@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/Sirupsen/logrus"
-	"github.com/heroku/x/redis"
+	"github.com/heroku/x/hredis/redigo"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -26,7 +26,7 @@ func main() {
 	if redisURL == "" {
 		log.WithField("REDIS_URL", redisURL).Fatal("$REDIS_URL must be set")
 	}
-	redisPool, err := redis.NewRedisPoolFromURL(redisURL)
+	redisPool, err := redigo.NewRedisPoolFromURL(redisURL)
 	if err != nil {
 		log.WithField("url", redisURL).Fatal("Unable to create Redis pool")
 	}
@@ -36,7 +36,7 @@ func main() {
 
 	go func() {
 		for {
-			waited, err := redis.WaitForAvailability(redisURL, waitTimeout, rr.wait)
+			waited, err := redigo.WaitForAvailability(redisURL, waitTimeout, rr.wait)
 			if !waited || err != nil {
 				log.WithFields(logrus.Fields{"waitTimeout": waitTimeout, "err": err}).Fatal("Redis not available by timeout!")
 			}
@@ -51,7 +51,7 @@ func main() {
 
 	go func() {
 		for {
-			waited, err := redis.WaitForAvailability(redisURL, waitTimeout, nil)
+			waited, err := redigo.WaitForAvailability(redisURL, waitTimeout, nil)
 			if !waited || err != nil {
 				log.WithFields(logrus.Fields{"waitTimeout": waitTimeout, "err": err}).Fatal("Redis not available by timeout!")
 			}
