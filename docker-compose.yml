@@ -2,7 +2,6 @@ version: '2'
 
 services:
   app:
-    command: go-websocket-chat-demo
     build: .
     environment:
       PORT: '5000'
