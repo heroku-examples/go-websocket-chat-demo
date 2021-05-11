@@ -7,4 +7,5 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o go-websocket-chat-demo .
 FROM heroku/heroku:18
 WORKDIR /app
 COPY --from=0 /src/go-websocket-chat-demo /app
+COPY ./public /app/public
 CMD ["./go-websocket-chat-demo"]
