@@ -1,198 +1,126 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
+	"github.com/redis/go-redis/v9"
 )
 
-const (
-	// Channel name to use with redis
-	Channel = "chat"
-)
+const channel = "chat"
 
 var (
-	waitingMessage, availableMessage []byte
-	waitSleep                        = time.Second * 10
+	waitingMsg, _   = json.Marshal(message{Handle: "system", Text: "Waiting for redis to be available. Messaging won't work until redis is available"})
+	availableMsg, _ = json.Marshal(message{Handle: "system", Text: "Redis is now available & messaging is now possible"})
 )
 
-func init() {
-	var err error
-	waitingMessage, err = json.Marshal(message{
-		Handle: "system",
-		Text:   "Waiting for redis to be available. Messaging won't work until redis is available",
-	})
-	if err != nil {
-		panic(err)
-	}
-	availableMessage, err = json.Marshal(message{
-		Handle: "system",
-		Text:   "Redis is now available & messaging is now possible",
-	})
-	if err != nil {
-		panic(err)
-	}
+// Hub manages WebSocket connections and Redis pub/sub.
+type Hub struct {
+	rdb    *redis.Client
+	logger *slog.Logger
+
+	mu    sync.RWMutex
+	conns map[*websocket.Conn]struct{}
 }
 
-// redisReceiver receives messages from Redis and broadcasts them to all
-// registered websocket connections that are Registered.
-type redisReceiver struct {
-	pool *redis.Pool
-
-	messages       chan []byte
-	newConnections chan *websocket.Conn
-	rmConnections  chan *websocket.Conn
-}
-
-// newRedisReceiver creates a redisReceiver that will use the provided
-// rredis.Pool.
-func newRedisReceiver(pool *redis.Pool) redisReceiver {
-	return redisReceiver{
-		pool:           pool,
-		messages:       make(chan []byte, 1000), // 1000 is arbitrary
-		newConnections: make(chan *websocket.Conn),
-		rmConnections:  make(chan *websocket.Conn),
+func NewHub(rdb *redis.Client, logger *slog.Logger) *Hub {
+	return &Hub{
+		rdb:    rdb,
+		logger: logger,
+		conns:  make(map[*websocket.Conn]struct{}),
 	}
 }
 
-func (rr *redisReceiver) wait(_ time.Time) error {
-	rr.broadcast(waitingMessage)
-	time.Sleep(waitSleep)
-	return nil
+func (h *Hub) Register(conn *websocket.Conn) {
+	h.mu.Lock()
+	h.conns[conn] = struct{}{}
+	h.mu.Unlock()
 }
 
-// run receives pubsub messages from Redis after establishing a connection.
-// When a valid message is received it is broadcast to all connected websockets
-func (rr *redisReceiver) run() error {
-	l := log.WithField("channel", Channel)
-	conn := rr.pool.Get()
-	defer conn.Close()
-	psc := redis.PubSubConn{Conn: conn}
-	psc.Subscribe(Channel)
-	go rr.connHandler()
-	for {
-		switch v := psc.Receive().(type) {
-		case redis.Message:
-			l.WithField("message", string(v.Data)).Info("Redis Message Received")
-			if _, err := validateMessage(v.Data); err != nil {
-				l.WithField("err", err).Error("Error unmarshalling message from Redis")
-				continue
-			}
-			rr.broadcast(v.Data)
-		case redis.Subscription:
-			l.WithFields(logrus.Fields{
-				"kind":  v.Kind,
-				"count": v.Count,
-			}).Println("Redis Subscription Received")
-		case error:
-			return errors.Wrap(v, "Error while subscribed to Redis channel")
-		default:
-			l.WithField("v", v).Info("Unknown Redis receive during subscription")
+func (h *Hub) Deregister(conn *websocket.Conn) {
+	h.mu.Lock()
+	delete(h.conns, conn)
+	h.mu.Unlock()
+}
+
+func (h *Hub) Broadcast(msg []byte) {
+	h.mu.RLock()
+	var failed []*websocket.Conn
+	for conn := range h.conns {
+		if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+			h.logger.Error("write to websocket failed", "err", err)
+			failed = append(failed, conn)
 		}
 	}
+	h.mu.RUnlock()
+
+	for _, conn := range failed {
+		h.Deregister(conn)
+		conn.Close()
+	}
 }
 
-// broadcast the provided message to all connected websocket connections.
-// If an error occurs while writting a message to a websocket connection it is
-// closed and deregistered.
-func (rr *redisReceiver) broadcast(msg []byte) {
-	rr.messages <- msg
+func (h *Hub) Publish(ctx context.Context, data []byte) error {
+	return h.rdb.Publish(ctx, channel, data).Err()
 }
 
-// register the websocket connection with the receiver.
-func (rr *redisReceiver) register(conn *websocket.Conn) {
-	rr.newConnections <- conn
-}
+func (h *Hub) Subscribe(ctx context.Context) error {
+	sub := h.rdb.Subscribe(ctx, channel)
+	defer sub.Close()
 
-// deRegister the connection by closing it and removing it from our list.
-func (rr *redisReceiver) deRegister(conn *websocket.Conn) {
-	rr.rmConnections <- conn
-}
+	h.logger.Info("subscribed to redis channel", "channel", channel)
 
-func (rr *redisReceiver) connHandler() {
-	conns := make([]*websocket.Conn, 0)
+	ch := sub.Channel()
 	for {
 		select {
-		case msg := <-rr.messages:
-			for _, conn := range conns {
-				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-					log.WithFields(logrus.Fields{
-						"data": msg,
-						"err":  err,
-						"conn": conn,
-					}).Error("Error writting data to connection! Closing and removing Connection")
-					conns = removeConn(conns, conn)
-				}
+		case <-ctx.Done():
+			return ctx.Err()
+		case msg, ok := <-ch:
+			if !ok {
+				return fmt.Errorf("redis subscription channel closed")
 			}
-		case conn := <-rr.newConnections:
-			conns = append(conns, conn)
-		case conn := <-rr.rmConnections:
-			conns = removeConn(conns, conn)
+			data := []byte(msg.Payload)
+			h.logger.Info("redis message received", "data", msg.Payload)
+			if _, err := validateMessage(data); err != nil {
+				h.logger.Error("invalid message from redis", "err", err)
+				continue
+			}
+			h.Broadcast(data)
 		}
 	}
 }
 
-func removeConn(conns []*websocket.Conn, remove *websocket.Conn) []*websocket.Conn {
-	var i int
-	var found bool
-	for i = 0; i < len(conns); i++ {
-		if conns[i] == remove {
-			found = true
-			break
+func newRedisClient(redisURL string) (*redis.Client, error) {
+	opts, err := redis.ParseURL(redisURL)
+	if err != nil {
+		return nil, fmt.Errorf("parsing redis URL: %w", err)
+	}
+	if strings.HasPrefix(redisURL, "rediss") {
+		opts.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	return redis.NewClient(opts), nil
+}
+
+func waitForRedis(ctx context.Context, rdb *redis.Client, logger *slog.Logger, onWait func()) error {
+	for {
+		if err := rdb.Ping(ctx).Err(); err == nil {
+			return nil
+		}
+		logger.Info("redis not yet available, retrying...")
+		if onWait != nil {
+			onWait()
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Second):
 		}
 	}
-	if !found {
-		fmt.Printf("conns: %#v\nconn: %#v\n", conns, remove)
-		panic("Conn not found")
-	}
-	copy(conns[i:], conns[i+1:]) // shift down
-	conns[len(conns)-1] = nil    // nil last element
-	return conns[:len(conns)-1]  // truncate slice
-}
-
-// redisWriter publishes messages to the Redis CHANNEL
-type redisWriter struct {
-	pool     *redis.Pool
-	messages chan []byte
-}
-
-func newRedisWriter(pool *redis.Pool) redisWriter {
-	return redisWriter{
-		pool:     pool,
-		messages: make(chan []byte, 10000),
-	}
-}
-
-// run the main redisWriter loop that publishes incoming messages to Redis.
-func (rw *redisWriter) run() error {
-	conn := rw.pool.Get()
-	defer conn.Close()
-
-	for data := range rw.messages {
-		if err := writeToRedis(conn, data); err != nil {
-			rw.publish(data) // attempt to redeliver later
-			return err
-		}
-	}
-	return nil
-}
-
-func writeToRedis(conn redis.Conn, data []byte) error {
-	if err := conn.Send("PUBLISH", Channel, data); err != nil {
-		return errors.Wrap(err, "Unable to publish message to Redis")
-	}
-	if err := conn.Flush(); err != nil {
-		return errors.Wrap(err, "Unable to flush published message to Redis")
-	}
-	return nil
-}
-
-// publish to Redis via channel.
-func (rw *redisWriter) publish(data []byte) {
-	rw.messages <- data
 }
