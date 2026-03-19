@@ -46,7 +46,7 @@ func handleWebSocket(hub *Hub, logger *slog.Logger) http.HandlerFunc {
 		for {
 			mt, data, err := ws.ReadMessage()
 			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseGoingAway) || err == io.EOF {
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) || err == io.EOF {
 					logger.Info("websocket closed")
 				} else {
 					logger.Error("error reading websocket message", "err", err)
