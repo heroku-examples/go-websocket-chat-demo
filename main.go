@@ -1,69 +1,83 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
-
-	"github.com/heroku/x/hredis/redigo"
-	"github.com/sirupsen/logrus"
-)
-
-var (
-	waitTimeout = time.Minute * 10
-	log         = logrus.WithField("cmd", "go-websocket-chat-demo")
-	rr          redisReceiver
-	rw          redisWriter
 )
 
 func main() {
+	logger := slog.Default()
+
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.WithField("PORT", port).Fatal("$PORT must be set")
+		logger.Error("$PORT must be set")
+		os.Exit(1)
 	}
 
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL == "" {
-		log.WithField("REDIS_URL", redisURL).Fatal("$REDIS_URL must be set")
+		logger.Error("$REDIS_URL must be set")
+		os.Exit(1)
 	}
-	redisPool, err := redigo.NewRedisPoolFromURL(redisURL)
+
+	rdb, err := newRedisClient(redisURL)
 	if err != nil {
-		log.WithField("url", redisURL).Fatal("Unable to create Redis pool")
+		logger.Error("failed to create redis client", "err", err)
+		os.Exit(1)
 	}
 
-	rr = newRedisReceiver(redisPool)
-	rw = newRedisWriter(redisPool)
+	hub := NewHub(rdb, logger)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	go func() {
 		for {
-			waited, err := redigo.WaitForAvailability(redisURL, waitTimeout, rr.wait)
-			if !waited || err != nil {
-				log.WithFields(logrus.Fields{"waitTimeout": waitTimeout, "err": err}).Fatal("Redis not available by timeout!")
+			if err := waitForRedis(ctx, rdb, logger, func() {
+				hub.Broadcast(waitingMsg)
+			}); err != nil {
+				return
 			}
-			rr.broadcast(availableMessage)
-			err = rr.run()
-			if err == nil {
-				break
+			hub.Broadcast(availableMsg)
+
+			if err := hub.Subscribe(ctx); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				logger.Error("redis subscription error, reconnecting", "err", err)
+				continue
 			}
-			log.Error(err)
+			return
 		}
 	}()
+
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.Dir("./public")))
+	mux.HandleFunc("/ws", handleWebSocket(hub, logger))
+
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
 
 	go func() {
-		for {
-			waited, err := redigo.WaitForAvailability(redisURL, waitTimeout, nil)
-			if !waited || err != nil {
-				log.WithFields(logrus.Fields{"waitTimeout": waitTimeout, "err": err}).Fatal("Redis not available by timeout!")
-			}
-			err = rw.run()
-			if err == nil {
-				break
-			}
-			log.Error(err)
+		logger.Info("server starting", "port", port)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			logger.Error("server error", "err", err)
+			os.Exit(1)
 		}
 	}()
 
-	http.Handle("/", http.FileServer(http.Dir("./public")))
-	http.HandleFunc("/ws", handleWebsocket)
-	log.Println(http.ListenAndServe(":"+port, nil))
+	<-ctx.Done()
+	logger.Info("shutting down")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	srv.Shutdown(shutdownCtx)
+	rdb.Close()
 }

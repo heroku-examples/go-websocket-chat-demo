@@ -7,8 +7,8 @@
     "go",
     "websocket"
   ],
-  "website": "http://github.com/heroku-examples/go-websocket-chat-demo",
-  "repository": "http://github.com/heroku-examples/go-websocket-chat-demol",
+  "website": "https://github.com/heroku-examples/go-websocket-chat-demo",
+  "repository": "https://github.com/heroku-examples/go-websocket-chat-demo",
   "addons": [
     "heroku-redis"
   ]

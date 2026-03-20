@@ -1,18 +1,15 @@
-version: '2'
-
 services:
   app:
-    command: go-websocket-chat-demo
     build: .
     environment:
-      PORT: '5000'
-      REDIS_URL: 'redis://redis:6379'
+      PORT: "5000"
+      REDIS_URL: "redis://redis:6379"
     depends_on:
       - redis
     ports:
       - "127.0.0.1:5000:5000"
 
   redis:
-    image: redis
+    image: redis:7
     ports:
       - "6379:6379"
